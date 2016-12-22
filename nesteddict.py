@@ -10,7 +10,7 @@ __author__ = "Nick Stanisha <github.com/nickstanisha>"
 __version__ = 0.1
 
 
-class NestedDict(dict):
+class NestedDict(object):
     """ An object representing a dictionary of dictionaries of dictionaries ...
 
         In order to avoid code like this
@@ -41,31 +41,47 @@ class NestedDict(dict):
         >>> my_nested_dict
         {1: {2: 3}}
     """
-    @staticmethod
-    def _split_key(key):
-        if isinstance(key, collections.Sequence) and not isinstance(key, basestring):
-            return key[0], key[1:]
-        else:
-            return key, []
+    def __init__(self, *args, **kwargs):
+        self._dict = dict()
+        self.keys = self._dict.keys
+        self.update(*args, **kwargs)
+
+    def __str__(self):
+        return str(self._dict)
+
+    def __repr__(self):
+        return repr(self._dict)
 
     def __getitem__(self, key):
-        cur_key, downstream = self._split_key(key)
-        if downstream:
-            return super(NestedDict, self).__getitem__(cur_key)[downstream]
-        else:
-            return super(NestedDict, self).__getitem__(cur_key)
+        if not isinstance(key, collections.Sequence) and not isinstance(key, basestring):
+            return self._dict[key]
+
+        d = self._dict
+        for k in key:
+            d = d[k]
+        return d
 
     def __setitem__(self, key, value):
-        cur_key, downstream = self._split_key(key)
-        if downstream:
-            if cur_key not in self or not isinstance(self[cur_key], NestedDict):
-                super(NestedDict, self).__setitem__(cur_key, NestedDict())
-            self[cur_key][downstream] = value
+        if not isinstance(key, collections.Sequence) and not isinstance(key, basestring):
+            self._dict[key] = value
         else:
-            super(NestedDict, self).__setitem__(cur_key, value)
+            d = self._dict
+            for k in key[:-1]:
+                d = d.setdefault(k, {})
+            d[key[-1]] = value
 
     def get(self, key, default=None):
         try:
             return self.__getitem__(key)
         except (KeyError, TypeError):
             return default
+
+    def update(self, *args, **kwargs):
+        self._dict.update(**kwargs)
+
+        if len(args) > 1:
+            raise TypeError("update expected at most 1 arguments, got {}".format(len(args)))
+        if args:
+            for keys, value in args[0]:
+                self[keys] = value
+
