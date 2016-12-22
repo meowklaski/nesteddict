@@ -1,6 +1,7 @@
 """ A nested hash-map/dictionary object for Python """
 
 import collections
+from functools import reduce
 try:
     basestring
 except NameError:
@@ -10,78 +11,55 @@ __author__ = "Nick Stanisha <github.com/nickstanisha>"
 __version__ = 0.1
 
 
-class NestedDict(object):
-    """ An object representing a dictionary of dictionaries of dictionaries ...
+def _keys_in_dict(dataDict, parent=[]):
+    if not isinstance(dataDict, dict):
+        return [tuple(parent)]
+    else:
+        return reduce(list.__add__, [_keys_in_dict(v, parent + [k]) for k,v in dataDict.items()], [])
 
-        In order to avoid code like this
-
-        >>> if 'a' in dictionary:
-        ...     if 'b' in dictionary['a']
-        ...         dictionary['a']['b']['c'] = 3
-        ...     else:
-        ...         dictionary['a']['b'] = {'c': 3}
-        ... else:
-        ...     dictionary['a'] = {'b': {'c': 3}}
-
-        NestedDict enables the following syntax
-
-        >>> nested_dictionary['a', 'b', 'c'] = 3
-
-        A defaultdict coult be used to accomplish a similar goal, but only to
-        a finite depth specified at the time of construction
-
-        >>> # Nested dictionary of depth 4
-        >>> d = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
-
-        NestedDict is able to handle nested dictinoaries of arbitrary depth. Additionally,
-        since NestedDict extends `dict`, it prints nicely to the console by default
-
-        >>> my_default_dict
-        defaultdict(<function <lambda> at 0x10077f840>, {1: defaultdict(<function <lambda>.<locals>.<lambda> at 0x10185a400>, {2: 3})})
-        >>> my_nested_dict
-        {1: {2: 3}}
-    """
-    def __init__(self, *args, **kwargs):
-        self._dict = dict()
-        self.keys = self._dict.keys
-        self.update(*args, **kwargs)
-
-    def __str__(self):
-        return str(self._dict)
-
-    def __repr__(self):
-        return repr(self._dict)
-
-    def __getitem__(self, key):
-        if not isinstance(key, collections.Sequence) and not isinstance(key, basestring):
-            return self._dict[key]
-
-        d = self._dict
-        for k in key:
-            d = d[k]
+def _get_nested(d, keys, default=None):
+    if not isinstance(keys, collections.Sequence) or isinstance(keys, basestring):
+        raise TypeError(str(type(keys)) + " is not a non-string Sequence") 
+    try:
+        for key in keys:
+            d = d[key]
         return d
+    except KeyError:
+        return default
 
-    def __setitem__(self, key, value):
-        if not isinstance(key, collections.Sequence) and not isinstance(key, basestring):
-            self._dict[key] = value
-        else:
-            d = self._dict
-            for k in key[:-1]:
-                d = d.setdefault(k, {})
-            d[key[-1]] = value
+def _set_nested(d, keys, value):
+    if not isinstance(keys, collections.Sequence) or isinstance(keys, basestring):
+        raise TypeError(str(type(keys)) + " is not a non-string Sequence")
+    _d = d
+    for key in keys[:-1]:
+        _d = _d.setdefault(key, {})
+    _d[keys[-1]] = value
 
-    def get(self, key, default=None):
-        try:
-            return self.__getitem__(key)
-        except (KeyError, TypeError):
-            return default
 
-    def update(self, *args, **kwargs):
-        self._dict.update(**kwargs)
+class NestedDict(dict):
+    def get_nested(self, *args):
+        if len(args) < 1:
+            raise TypeError("get_nested expected at least 1 argument, got 0")
+        if len(args) > 2:
+            raise TypeError("get_nested expected at most 2 arguments, got {}".format(len(args)))
 
+        keys, default = args if len(args) == 2 else (args[0], None)
+        return _get_nested(self, keys, default)
+
+    def set_nested(self, keys, value):
+        _set_nested(self, keys, value)
+
+    def nested_keys(self):
+        return _keys_in_dict(self)
+
+    def update_nested(self, *args, **kwargs):
         if len(args) > 1:
-            raise TypeError("update expected at most 1 arguments, got {}".format(len(args)))
-        if args:
+            raise TypeError("update expected at most 1 arguments, got %d" % len(args))
+        if args and isinstance(args[0], dict):
+            for keys in _keys_in_dict(args[0]):
+                self.set_nested(keys, _get_nested(args[0], keys))
+        elif args:
             for keys, value in args[0]:
-                self[keys] = value
+                self.set_nested(keys, value)
+        self.update(**kwargs)
 
