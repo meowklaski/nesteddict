@@ -60,7 +60,7 @@ def _get_nested(d, keys, default=None):
         return default
 
 def _set_nested(d, keys, value):
-    """ Set an value in a nested dictionary given a sequence of keys, creating
+    """ Set a value in a nested dictionary given a sequence of keys, creating
         nested dictionaries where possible.
 
         Parameters
@@ -82,7 +82,7 @@ def _set_nested(d, keys, value):
         for n, key in enumerate(keys[:-1]):
             d = d.setdefault(key, {})
         d[keys[-1]] = value
-    except TypeError, AttributeError:
+    except (TypeError, AttributeError):
         raise KeyError("The nested-dictionary key sequence: {} " 
         " is not available to be set".format(" -> ".join(str(i) for i in keys[:n+1])))
 
